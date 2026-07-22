@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Chromebook Web Emulator</title>
+  <style>
+    body { background: #111; color: #fff; text-align: center; font-family: sans-serif; margin: 0; padding: 20px; }
+    canvas { border: 2px solid #444; border-radius: 8px; cursor: pointer; background: #000; }
+  </style>
+</head>
+<body>
+  <h2>WebAssembly Emulator Base</h2>
+  <canvas id="screen" width="360" height="640"></canvas>
+
+  <script src="emulator_core.js"></script>
+  <script>
+    const WIDTH = 360, HEIGHT = 640;
+    const canvas = document.getElementById('screen');
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(WIDTH, HEIGHT);
+    let getPtr = null, touchFunc = null;
+
+    Module.onRuntimeInitialized = () => {
+      Module.ccall('init_screen', null, []);
+      getPtr = Module.cwrap('get_frame_buffer', 'number', []);
+      touchFunc = Module.cwrap('touch_event', null, ['number', 'number']);
+      requestAnimationFrame(render);
+    };
+
+    function render() {
+      if (getPtr) {
+        const ptr = getPtr();
+        const pixels = new Uint8Array(Module.HEAPU8.buffer, ptr, WIDTH * HEIGHT * 4);
+        imgData.data.set(pixels);
+        ctx.putImageData(imgData, 0, 0);
+      }
+      requestAnimationFrame(render);
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (!touchFunc) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) * (WIDTH / rect.width));
+      const y = Math.floor((e.clientY - rect.top) * (HEIGHT / rect.height));
+      touchFunc(x, y);
+    });
+  </script>
+</body>
+</html>
